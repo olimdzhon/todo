@@ -1,0 +1,122 @@
+name: Deploy to Production Server (rsync)
+
+on:
+  push:
+    branches: [main, gh-pages]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 77.237.244.209 >> ~/.ssh/known_hosts
+
+      - name: Sync files to server
+        run: |
+          echo "📦 Syncing files to server..."
+          rsync -avz --progress \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '.env.local' \
+            --exclude '.DS_Store' \
+            --exclude '*.md' \
+            --delete \
+            ./ root@77.237.244.209:/root/todo-app/
+          echo "✅ Files synced successfully"
+
+      - name: Deploy on server
+        run: |
+          ssh root@77.237.244.209 << 'ENDSSH'
+            set -e
+            cd /root/todo-app
+
+            echo "🛑 Stopping existing containers..."
+            docker-compose down 2>/dev/null || true
+
+            echo "🧹 Cleaning up old images..."
+            docker system prune -f
+
+            echo "🏗️ Building and starting containers..."
+            docker-compose up -d --build
+
+            echo "⏳ Waiting for services to start..."
+            sleep 15
+
+            echo "✅ Checking container status..."
+            docker-compose ps
+
+            echo "📊 Recent logs:"
+            docker-compose logs --tail=30
+
+            echo "🎉 Deployment completed successfully!"
+          ENDSSH
+
+      - name: Health check
+        run: |
+          echo "🔍 Running health checks..."
+
+          # Wait a bit more for services to be fully ready
+          sleep 5
+
+          # Check health endpoint
+          echo "Checking /health endpoint..."
+          if curl -f -s http://77.237.244.209/health | grep -q "healthy"; then
+            echo "✅ Health check passed"
+          else
+            echo "⚠️ Health check warning"
+          fi
+
+          # Check API
+          echo "Checking API endpoint..."
+          if curl -f -s http://77.237.244.209/api/ | grep -q "TODO API"; then
+            echo "✅ API is responding"
+          else
+            echo "❌ API is not responding"
+            exit 1
+          fi
+
+          # Check frontend
+          echo "Checking frontend..."
+          if curl -f -s -I http://77.237.244.209/ | grep -q "200 OK"; then
+            echo "✅ Frontend is accessible"
+          else
+            echo "❌ Frontend is not accessible"
+            exit 1
+          fi
+
+          echo ""
+          echo "🎉 All health checks passed!"
+          echo "🌐 Application is live at: http://77.237.244.209"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "🌐 Frontend: http://77.237.244.209"
+          echo "🔌 API: http://77.237.244.209/api"
+          echo "📚 Docs: http://77.237.244.209/api/docs"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Please check the logs above for details."
+          echo "You can manually check the server with:"
+          echo "  ssh root@77.237.244.209"
+          echo "  cd /root/todo-app"
+          echo "  docker-compose logs"

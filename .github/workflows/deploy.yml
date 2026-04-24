@@ -1,37 +1,81 @@
-name: Deploy to GitHub Pages
+name: Deploy to Production Server
 
 on:
   push:
-    branches: [gh-pages]
+    branches: [main]
   workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          path: '.'
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 77.237.244.209 >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh root@77.237.244.209 << 'ENDSSH'
+            cd /root/todo-app
+
+            echo "🔄 Pulling latest changes..."
+            git pull origin main || echo "Git not initialized, skipping pull"
+
+            echo "🛑 Stopping containers..."
+            docker-compose down
+
+            echo "🧹 Cleaning up..."
+            docker system prune -f
+
+            echo "🏗️ Building and starting containers..."
+            docker-compose up -d --build
+
+            echo "⏳ Waiting for services to start..."
+            sleep 15
+
+            echo "✅ Checking container status..."
+            docker-compose ps
+
+            echo "📊 Recent logs:"
+            docker-compose logs --tail=20
+
+            echo "🎉 Deployment completed!"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying deployment..."
+
+          # Check health endpoint
+          if curl -f http://77.237.244.209/health; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            exit 1
+          fi
+
+          # Check API
+          if curl -f http://77.237.244.209/api/; then
+            echo "✅ API is responding"
+          else
+            echo "❌ API is not responding"
+            exit 1
+          fi
+
+          echo "🎉 Deployment verified successfully!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Check the logs above for details."
