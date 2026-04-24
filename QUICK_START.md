@@ -7,6 +7,7 @@
 ✅ Ветка `gh-pages` создана  
 ✅ Файлы фронтенда (index.html, app.js, styles.css) скопированы в корень  
 ✅ Скрипт автоматического деплоя создан  
+✅ GitHub Actions workflows настроены для автоматического деплоя  
 
 ---
 
@@ -22,11 +23,11 @@ git remote add origin https://github.com/ВАШ_USERNAME/ВАШ_РЕПОЗИТО
 git push -u origin gh-pages
 ```
 
-### 3️⃣ Включите GitHub Pages
+### 3️⃣ Включите GitHub Pages через Actions
 1. Откройте репозиторий на GitHub
 2. **Settings** → **Pages**
-3. Source: выберите ветку `gh-pages` и папку `/ (root)`
-4. Нажмите **Save**
+3. Source: выберите **GitHub Actions**
+4. Готово! Деплой запустится автоматически
 
 ---
 
@@ -37,23 +38,27 @@ git push -u origin gh-pages
 https://ВАШ_USERNAME.github.io/ВАШ_РЕПОЗИТОРИЙ/
 ```
 
-Деплой занимает 1-3 минуты.
+Первый деплой занимает 1-3 минуты. Последующие обновления - 30-60 секунд.
 
 ---
 
 ## Обновление сайта
 
-### Вариант 1: Автоматический скрипт
-```bash
-./deploy_github_pages.sh
-```
-
-### Вариант 2: Вручную
+### 🤖 Автоматически (рекомендуется)
+Просто запушьте изменения - GitHub Actions сделает всё сам:
 ```bash
 git add .
 git commit -m "Update site"
 git push origin gh-pages
 ```
+
+### 📜 Через скрипт
+```bash
+./deploy_github_pages.sh
+```
+
+### 📊 Мониторинг деплоя
+Проверьте статус: **GitHub → Actions**
 
 ---
 
@@ -71,6 +76,8 @@ git push origin gh-pages
 
 ---
 
-## Нужна помощь?
+## 📚 Документация
 
-Подробные инструкции: `GITHUB_PAGES_DEPLOY.md`
+- **Быстрый старт**: этот файл
+- **GitHub Actions**: `GITHUB_ACTIONS_SETUP.md`
+- **Подробная инструкция**: `GITHUB_PAGES_DEPLOY.md`
